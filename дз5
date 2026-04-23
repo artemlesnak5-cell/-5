@@ -1,0 +1,305 @@
+# movie_system.py
+
+import sqlite3
+
+
+class Movie:
+    def __init__(self, id, title, genre, year, duration, rating, is_available):
+        self.id = id
+        self.title = title
+        self.genre = genre
+        self.year = year
+        self.duration = duration
+        self.rating = rating
+        self.is_available = is_available
+
+
+class MovieManager:
+    def __init__(self, db_name="cinema.db"):
+        self.db_name = db_name
+        self._create_table()
+    
+    def _create_table(self):
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS movies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                genre TEXT,
+                year INTEGER,
+                duration INTEGER,
+                rating REAL,
+                is_available BOOLEAN DEFAULT 1
+            )
+        ''')
+        conn.commit()
+        conn.close()
+    
+    def create_movie(self, title, genre, year, duration, rating):
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO movies (title, genre, year, duration, rating, is_available)
+            VALUES (?, ?, ?, ?, ?, 1)
+        ''', (title, genre, year, duration, rating))
+        conn.commit()
+        movie_id = cursor.lastrowid
+        conn.close()
+        return self.get_by_id(movie_id)
+    
+    def get_all_movies(self):
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM movies ORDER BY id")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        movies = []
+        for row in rows:
+            movie = Movie(row[0], row[1], row[2], row[3], row[4], row[5], bool(row[6]))
+            movies.append(movie)
+        return movies
+    
+    def get_by_id(self, movie_id):
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM movies WHERE id = ?", (movie_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return Movie(row[0], row[1], row[2], row[3], row[4], row[5], bool(row[6]))
+        return None
+    
+    def get_movie_by_title(self, title):
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM movies WHERE title = ?", (title,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return Movie(row[0], row[1], row[2], row[3], row[4], row[5], bool(row[6]))
+        return None
+    
+    def get_movies_by_genre(self, genre_name):
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM movies WHERE LOWER(genre) LIKE ?", (f"%{genre_name.lower()}%",))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        movies = []
+        for row in rows:
+            movie = Movie(row[0], row[1], row[2], row[3], row[4], row[5], bool(row[6]))
+            movies.append(movie)
+        return movies
+    
+    def get_high_rated_movies(self, min_rating):
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM movies WHERE rating >= ?", (min_rating,))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        movies = []
+        for row in rows:
+            movie = Movie(row[0], row[1], row[2], row[3], row[4], row[5], bool(row[6]))
+            movies.append(movie)
+        return movies
+    
+    def get_movies_after_year(self, year):
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM movies WHERE year > ?", (year,))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        movies = []
+        for row in rows:
+            movie = Movie(row[0], row[1], row[2], row[3], row[4], row[5], bool(row[6]))
+            movies.append(movie)
+        return movies
+    
+    def update_rating(self, movie_id, new_rating):
+        if new_rating < 0 or new_rating > 10:
+            return False
+        
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE movies SET rating = ? WHERE id = ?", (new_rating, movie_id))
+        conn.commit()
+        success = cursor.rowcount > 0
+        conn.close()
+        return success
+    
+    def update_genre(self, movie_id, new_genre):
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE movies SET genre = ? WHERE id = ?", (new_genre, movie_id))
+        conn.commit()
+        success = cursor.rowcount > 0
+        conn.close()
+        return success
+    
+    def update_availability(self, movie_id, is_available):
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE movies SET is_available = ? WHERE id = ?", (is_available, movie_id))
+        conn.commit()
+        success = cursor.rowcount > 0
+        conn.close()
+        return success
+    
+    def update_full(self, movie_id, **kwargs):
+        allowed = ["title", "genre", "year", "duration", "rating", "is_available"]
+        updates = []
+        values = []
+        
+        for key, value in kwargs.items():
+            if key in allowed:
+                updates.append(f"{key} = ?")
+                values.append(value)
+        
+        if not updates:
+            return False
+        
+        values.append(movie_id)
+        query = f"UPDATE movies SET {', '.join(updates)} WHERE id = ?"
+        
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute(query, values)
+        conn.commit()
+        success = cursor.rowcount > 0
+        conn.close()
+        return success
+    
+    def delete_by_id(self, movie_id):
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM movies WHERE id = ?", (movie_id,))
+        conn.commit()
+        success = cursor.rowcount > 0
+        conn.close()
+        return success
+    
+    def delete_by_title(self, title):
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM movies WHERE title = ?", (title,))
+        conn.commit()
+        success = cursor.rowcount > 0
+        conn.close()
+        return success
+    
+    def soft_delete(self, movie_id):
+        return self.update_availability(movie_id, False)
+
+
+class MovieViewer:
+    def print_header(self, text):
+        print("#" * 40)
+        print(f"== {text} ==")
+        print("#" * 40)
+    
+    def print_all(self, movies):
+        for movie in movies:
+            self.print_one(movie)
+    
+    def print_one(self, movie):
+        status = "В прокате" if movie.is_available else "Не в прокате"
+        print(f"ID:{movie.id} | {movie.title} | {movie.genre} | {movie.year} | {movie.rating} | {status}")
+    
+    def print_statistics(self, movies):
+        if not movies:
+            print("Нет фильмов")
+            return
+        
+        total = len(movies)
+        available = 0
+        rating_sum = 0
+        
+        for movie in movies:
+            if movie.is_available:
+                available = available + 1
+            rating_sum = rating_sum + movie.rating
+        
+        not_available = total - available
+        avg_rating = rating_sum / total
+        
+        self.print_header("СТАТИСТИКА")
+        print(f"Всего фильмов: {total}")
+        print(f"В прокате: {available}")
+        print(f"Не в прокате: {not_available}")
+        print(f"Средний рейтинг: {avg_rating:.1f}")
+
+
+if __name__ == "__main__":
+    manager = MovieManager("cinema.db")
+    viewer = MovieViewer()
+    
+    conn = sqlite3.connect("cinema.db")
+    conn.execute("DROP TABLE IF EXISTS movies")
+    conn.close()
+    manager._create_table()
+    
+    viewer.print_header("СОЗДАНИЕ ФИЛЬМОВ")
+    manager.create_movie("Матрица", "Боевик", 1999, 136, 9.0)
+    manager.create_movie("Начало", "Боевик/Триллер", 2010, 148, 8.8)
+    manager.create_movie("Интерстеллар", "Фантастика", 2014, 169, 8.6)
+    print("Добавлено 3 фильма\n")
+    
+    viewer.print_header("ВСЕ ФИЛЬМЫ")
+    all_movies = manager.get_all_movies()
+    viewer.print_all(all_movies)
+    print()
+    
+    viewer.print_header("ПОИСК ПО ID")
+    movie = manager.get_by_id(2)
+    if movie:
+        viewer.print_one(movie)
+    print()
+    
+    viewer.print_header("ПОИСК ПО НАЗВАНИЮ")
+    movie = manager.get_movie_by_title("Начало")
+    if movie:
+        viewer.print_one(movie)
+    print()
+    
+    viewer.print_header("ФИЛЬМЫ ПО ЖАНРУ")
+    movies = manager.get_movies_by_genre("боевик")
+    viewer.print_all(movies)
+    print()
+    
+    viewer.print_header("ВЫСОКИЙ РЕЙТИНГ")
+    movies = manager.get_high_rated_movies(8.5)
+    viewer.print_all(movies)
+    print()
+    
+    viewer.print_header("ОБНОВЛЕНИЕ РЕЙТИНГА")
+    manager.update_rating(1, 9.5)
+    updated = manager.get_by_id(1)
+    viewer.print_one(updated)
+    print()
+    
+    viewer.print_header("ОБНОВЛЕНИЕ ЖАНРА")
+    manager.update_genre(2, "Триллер")
+    updated = manager.get_by_id(2)
+    viewer.print_one(updated)
+    print()
+    
+    viewer.print_header("УДАЛЕНИЕ ФИЛЬМОВ")
+    if not manager.delete_by_id(5):
+        print("Фильм с ID 5 не найден")
+    
+    manager.soft_delete(3)
+    print("Фильм 'Интерстеллар' помечен как недоступен\n")
+    
+    viewer.print_header("ФИНАЛЬНЫЙ СПИСОК")
+    final_movies = manager.get_all_movies()
+    viewer.print_all(final_movies)
+    print()
+    
+    viewer.print_statistics(final_movies)
