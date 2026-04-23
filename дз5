@@ -1,5 +1,3 @@
-# movie_system.py
-
 import sqlite3
 
 
